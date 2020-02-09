@@ -1,0 +1,9 @@
+##RStudio for plotting graph - data Pyspark output
+setwd("<path>")
+task1a <- read.csv("task1a.csv", header = TRUE)
+library(ggplot2)
+p <- ggplot(data=task1a, aes(x=Month, y=count)) +
+  geom_bar(stat="identity") + scale_x_discrete(limits=c(1:12)) + 
+  xlab("Month")+ ylab("Ticket Count") + ggtitle("Monthly Distribution of Parking tickets") + 
+  theme(plot.title = element_text(hjust = 0.5))
+p

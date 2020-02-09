@@ -1,0 +1,217 @@
+﻿#The data is imported from the 2.1GB CSV file.
+#and uploaded on Pyspark-Jupyter Notebook environment.
+## importing packages
+import timeit
+start_time = timeit.default_timer()
+import pyspark
+sc = pyspark.SparkContext('local[*]')
+from pyspark.sql import SQLContext
+sqlContext = SQLContext(sc)
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession
+from pyspark.sql import Row
+from pyspark.sql import functions as F
+elapsed = timeit.default_timer() - start_time
+elapsed
+#Execution time: 23.538031000000046
+
+spark=SparkSession.builder.config("spark.sql.warehouse.dir","file:///C:/temp").appName("SparkSQL").getOrCreate()
+
+##loading file
+start_time = timeit.default_timer()
+df = spark.read.format("csv").option("header", "true"). load("parking_tickets.csv")
+df_count = df.count()
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed," count:", df_count)
+#Execution time: 55.97879639999974  count: 8334543
+
+##finding duplicate rows by selecting distinct ticket numbers
+start_time = timeit.default_timer()
+xdf = df.select('ticket_number').distinct()
+xdf_count = xdf.count()
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed," Distinct rows count:", xdf_count)
+#Execution time: 64.02118530000007  Distinct rows count: 8334543
+# actual data frame and the data frame with distinct ticket numbers have 
+#same number of rows, which implies that there are no duplicate ticket numbers.
+
+##looking for nulls
+start_time = timeit.default_timer()
+from pyspark.sql.functions import isnan, isnull, when, count
+##checking for ‘NA’ values
+NANs = df.select([count(when(isnan(c), c)).alias(c) for c in df.columns]).show()
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 312.19229730000006
+## checking for blank or null values
+start_time = timeit.default_timer()
+dfn = df.select([count(when(isnull(c), c)).alias(c) for c in df.columns])
+dfn.toPandas().to_csv('task0Nulls.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 76.44673869999951
+# nulls/missing values are observed for the variables, license_plate_state, 
+#license_plate_type, zipcode, notice_level, hearing_disposition. No missing
+# values are observed in other columns. These variables were not of interest. 
+#So, we didn’t delete rows corresponding to these variables. Moreover, nulls are possible for 
+#‘hearing_disposition’ and ‘notice_level’, since if the tickets were not contested for court 
+#or not sent any notice, the fields are left blank intentionally.
+
+########## Exploratory Analysis
+
+######## Task1a: do certain months have more tickets?
+start_time = timeit.default_timer()
+## converting the column ‘issue_date_new’ to ‘date’ type
+from pyspark.sql.functions import col, unix_timestamp, to_date
+df = df.withColumn('issue_date_new', 
+                   to_date(unix_timestamp(col('issue_date'), 'yyyy-MM-dd').cast("timestamp")))
+## splitting the date into year, month, and day columns 
+import datetime
+from pyspark.sql.functions import year, month, dayofmonth
+import pyspark.sql.functions as F
+df_task1a = df.withColumn('Year', year(F.col('issue_date_new'))). \
+			withColumn('Month', month(F.col('issue_date_new'))).\
+			withColumn('Day', dayofmonth(F.col('issue_date_new')))
+## grouping by ‘month’ column to obtain the ticket count
+monthcount = df_task1a.groupBy('Month').count().orderBy("Month")
+monthcount.toPandas().to_csv('task1a.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 53.583719799999926
+########## Graphing in R (task1a-graph-R.txt) using the output dataset 'task1a.csv'
+# 4th month (April) and 7th month (July) have approximately same number of parking tickets, 
+# and have the highest occurrences followed by August. December has the least occurrences 
+# of parking tickets. The initial and ending months of the year (January and December) 
+# which are the cold months in Chicago experience lesser tickets than the usual months.
+
+########### Task1b1: how many times does each kind of ticket appear? what are the total and average revenues by ticket?
+start_time = timeit.default_timer()
+ticket_kind = df.groupBy("violation_code","violation_description").count().orderBy("count")
+ticket_kind.toPandas().to_csv('task1b1.csv') #save as csv file
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 51.09267739999996
+
+# there are two columns that corresponds to the violation i.e., violation_code and violation_description. 
+# Therefore, we grouped the rows by these columns. But we observed that the violation_code and violation_description
+# columns have duplicate values, which should be cleaned before performing further analysis. 
+#For instance, the general format of the violation_code value is either 0964060 or 0964060A or  0964060B. 
+#Sometimes these three were found to have the same violation_description. Also, some text errors are found 
+#in violation_description making it a distinct value (For example, 2’ and 2” in the description). 
+############ code for cleaning the dataset in R ('task1b-cleaning-R.txt')
+
+########### Task1b2: Average revenue for ticket Types (Violation Code/Violation Description)
+start_time = timeit.default_timer()
+avg_revenue = df.groupby('violation_code','violation_description').agg({'total_payments': 'mean'}).orderBy("avg(total_payments)")
+avg_revenue.toPandas().to_csv('task1b3.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 50.290660200000275
+# The highest average revenue of around 129 dollars is generated for ‘Disabled parking’ 
+#and less/no revenue from ‘Impounded: temp reg false, stolen, altered’ violation type.
+ 
+########### Task1c: top-10 cars with most number of tickets
+start_time = timeit.default_timer()
+max_tickets1 = df.groupby('license_plate_number').count().orderBy(F.desc('count')).limit(10)
+max_tickets1.toPandas().to_csv('task1c2.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 72.24304950000078
+#more than 97% tickets among the total number of tickets from top 10 cars belonged 
+#to the top car. The number of tickets received by this car was 154741 while the 
+#second highest number was just 651.
+
+#further analyzing the top license plate, it was seen that it contained multiple vehicle make
+start_time = timeit.default_timer()
+max_tickets = df.groupby('license_plate_number','vehicle_make').count().orderBy(F.desc('count')).limit(10)
+max_tickets.toPandas().to_csv('task1c1.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 71.17066700000032
+
+## the top 10 cars in terms of vehicle_make instead of license_plate_number
+start_time = timeit.default_timer()
+max_tickets2 = df.groupby('vehicle_make').count().orderBy(F.desc('count')).limit(10)
+max_tickets2.toPandas().to_csv('task1c3.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 53.124310199998945
+# Ford and Chevy vehicles have most number of tickets
+
+############# Task1d: top-10 cars with the largest total fines across all their tickets?
+start_time = timeit.default_timer()
+from pyspark.sql.types import IntegerType
+df = df.withColumn("fine_level1_amount", df["fine_level1_amount"].cast(IntegerType()))
+max_fines1 = df.groupby('license_plate_number').agg({'fine_level1_amount': 'sum'}).orderBy(F.desc("sum(fine_level1_amount)")).limit(10)
+max_fines1.toPandas().to_csv('task1d2.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 69.02227780000067
+
+##looking at the vehicle_make, 
+start_time = timeit.default_timer()
+max_fines2 = df.groupby('vehicle_make').agg({'fine_level1_amount': 'sum'}).orderBy(F.desc("sum(fine_level1_amount)")).limit(10)
+max_fines2.toPandas().to_csv('task1d3.csv')
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 52.72646889999851
+# the top vehicle with most number of tickets is CHEV
+
+############## Task1e: Finding Peak hours in a day
+df.show(1)
+#Filter the first two columns ticket_number and issue_date from the dataframe.
+df_timestamp=df.select(df.columns[:2])
+#Create a new column Hour_day retrieving hours from the timestamp of issue_date
+from pyspark.sql.functions import col, unix_timestamp, to_date, hour
+df_hour= df_timestamp.withColumn('Hour_day', 
+                   hour(unix_timestamp(col('issue_date'), 'yyyy-MM-dd HH:mm:ss').cast("timestamp")))
+#Groupby Hour_day and find the count of ticket_number
+start_time = timeit.default_timer()
+grp_hour=df_hour.groupby('Hour_day').agg({'ticket_number' : 'count'}).sort('count(ticket_number)', ascending=False)
+grp_hour.show(5)
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 47.38793180000175
+#Creating groups, Group1(7am-1pm),Group2(1pm-7pm),Group3(7pm-1am),Group4(1am-7am):
+start_time = timeit.default_timer()
+group1_span=df_hour.filter("Hour_day == 7 or Hour_day == 8 or Hour_day == 9 or Hour_day == 10 or Hour_day == 11 or Hour_day == 12")
+group2_span=df_hour.filter("Hour_day == 13 or Hour_day == 14 or Hour_day == 15 or Hour_day == 16 or Hour_day == 17 or Hour_day == 18")
+group3_span=df_hour.filter("Hour_day == 19 or Hour_day == 20 or Hour_day == 21 or Hour_day == 22 or Hour_day == 23 or Hour_day == 0")
+group4_span=df_hour.filter(" Hour_day == 1 or Hour_day == 2 or Hour_day == 3 or Hour_day == 4 or Hour_day == 5 or Hour_day == 6")
+cntgrp1=group1_span.count()
+cntgrp2=group2_span.count()
+cntgrp3=group3_span.count()
+cntgrp4=group4_span.count()
+elapsed = timeit.default_timer() - start_time
+print("Group1(7am-1pm):",cntgrp1," Group2(1pm-7pm):",cntgrp2," Group3(7pm-1am):",cntgrp3," Group4(1am-7am):",cntgrp4," Execution time:",elapsed, sep='\n')
+#Group1(7am-1pm):
+#3807427
+#Group2(1pm-7pm):
+#2425600
+#Group3(7pm-1am):
+#1368952
+#Group4(1am-7am):
+#732564
+#Execution time: 408.8308825000022
+max_span=max(cntgrp1,cntgrp2,cntgrp3,cntgrp4)
+print(max_span)
+#3807427
+
+##############Task1f: Finding common areas experiencing more parking violation tickets
+start_time = timeit.default_timer()
+df.violocgrp=df.groupby('violation_location').agg({'ticket_number' : 'count'}).sort('count(ticket_number)', ascending=False)
+df.violocgrp.show(5)
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 69.62445339999977
+
+
+
+
+
+
+
+
+
+
+

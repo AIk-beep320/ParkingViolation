@@ -1,0 +1,92 @@
+#Task2: Clustering Analysis
+#This task involved conversion of ‘violation_location’ street addresses into 
+#latitude and longitude along with the zip codes for the available latest month (May, 2018). 
+#We used Google’s geocoding API for batch processing. Then, K-Means clustering is performed 
+#on zip codes by total number of tickets issued and total fines using Python 3. 
+#The results were used to build the map on Tableau.
+
+#Step 1: Finding the latest month and retrieving unique addresses for that month using Pyspark
+##### Load 7.13GB CSV file and the other required packages
+import timeit
+start_time = timeit.default_timer()
+import pyspark
+sc = pyspark.SparkContext('local[*]')
+from pyspark.sql import SQLContext
+sqlContext = SQLContext(sc)
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession
+from pyspark.sql import Row
+from pyspark.sql import functions as F
+spark = SparkSession.builder.config("spark.sql.warehouse.dir", "file:///C:/temp").appName("SparkSQL").getOrCreate()
+df = spark.\
+    read.format("csv").option("header", "true").\
+    load("parking_tickets.csv")
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 29.355374400001892
+##### create issue_date_new column of date type using issue_date column
+start_time = timeit.default_timer()
+from pyspark.sql.functions import col, unix_timestamp, to_date
+df = df.withColumn('issue_date_new', 
+                   to_date(unix_timestamp(col('issue_date'), 'yyyy-MM-dd').cast("timestamp")))
+##### create Year, Month, Day columns from issue_date_new column 
+import datetime
+from pyspark.sql.functions import year, month, dayofmonth
+import pyspark.sql.functions as F
+df = df.withColumn('Year', year(F.col('issue_date_new'))). \
+	withColumn('Month', month(F.col('issue_date_new'))).withColumn('Day', dayofmonth(F.col('issue_date_new')))
+##### convert fine_level1_amount to integer data type
+from pyspark.sql.types import IntegerType
+df = df.withColumn("fine_level1_amount", df["fine_level1_amount"].cast(IntegerType()))
+max_date = df.agg({"issue_date_new": "max"}).collect()
+elapsed = timeit.default_timer() - start_time
+print( "Latest date:",max_date, " Execution time:",elapsed)
+#Latest date: [Row(max(issue_date_new)=datetime.date(2018, 5, 14))]  Execution time: 836.0266214000003
+#We can see that the latest date in the available data is May 14, 2018. 
+#Therefore, retrieving the last month’s observations here with distinct addresses
+start_time = timeit.default_timer()
+task2c = df.filter((df['Year']==2018)& (df['Month']==5))
+#Distinct addresses
+xdf = task2c.select('violation_location').distinct()
+xdf_count = xdf.count()
+elapsed = timeit.default_timer() - start_time
+print( "Unique Addresses Count:",xdf_count, " Execution time:",elapsed)
+#Unique Addresses Count: 55710  Execution time: 283.4214806000018
+#Then, the rows are grouped by violation_location addresses and aggregated over 
+#to obtain the sum of ticket numbers and sum of fines as given below.
+start_time = timeit.default_timer()
+from pyspark.sql.functions import sum as sum_
+from pyspark.sql.functions import avg,count
+lastmonth = task2c.groupBy("violation_location").agg(sum_("fine_level1_amount"),avg("fine_level1_amount"),count("ticket_number"))
+#Add “Chicago, Illinois, United States” at the end of each violation_location address in the column
+lastmonth = lastmonth.select(F.concat(F.col("violation_location"), F.lit(", Chicago, Illinois, United States")),'sum(fine_level1_amount)',\
+                          'avg(fine_level1_amount)','count(ticket_number)')
+finaldf1 = lastmonth.orderBy("count(ticket_number)")
+finaldf1.toPandas().to_csv('task2c1.csv') #save file
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 312.60375120000026
+
+##Step 2: Getting the latitude, longitude and zip codes from the street addresses
+############ RStudio ('task2-Clus-GeocodingAPI-R.txt') for sending requests using Google API key
+
+##Step 3: Group the available rows by zip codes
+########## Pyspark for grouping the obtained addresses by Zip code
+start_time = timeit.default_timer()
+import pyspark
+spark = SparkSession.builder.config("spark.sql.warehouse.dir", "file:///C:/temp").appName("SparkSQL").getOrCreate()
+df = spark.\
+    read.format("csv").option("header", "true").\
+    load("lastm1.csv")
+from pyspark.sql.functions import sum as sum_
+from pyspark.sql.functions import avg,count
+m4 = df.groupBy("zip_code").agg(sum_("sum_fine"),avg("avg_fine"),sum_("ticket_count"))
+m4_count = m4.count()
+m4.toPandas().to_csv('task2czip.csv')#save file
+elapsed = timeit.default_timer() - start_time
+print( "Zip codes Count:",m4_count, " Execution time:",elapsed)
+#Zip codes Count: 106  Execution time: 4.813567299999704
+
+##Step 4: Performing K-Means clustering 
+########### K-Means Clustering in Python ('task2-Clustering-Python.txt') 
+

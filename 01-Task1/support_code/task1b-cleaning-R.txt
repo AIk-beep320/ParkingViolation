@@ -1,0 +1,123 @@
+﻿# task1b - cleaning and output
+# splitting the last character of violation_code (final$post_script column in the table) and grouping 
+#all the violation_descriptions to visually check the errors and duplicate values and correct it before performing analysis. 
+
+########### Dataframe for Checking errors #############################
+##For this purpose, the violation descriptions are grouped by violation_codes without ##postscripts(8th character in the violation_code - A,B,C,I,J,... is split)
+setwd("<path>")
+task1b <- read.csv("task1b1.csv", header = TRUE, stringsAsFactors = FALSE)
+
+#retrieving violation codes with postscripts A, B,etc
+newdf <- task1b[nchar(task1b[ ,2]) == 8, ] 
+
+#splitting the violation_code with postscript in new column
+newdf1 <- transform(newdf, code_mod = substr(violation_code,1,7), postscript = substr(violation_code,8,8)) 
+
+#retrieving violation codes without any postscripts A,B,..
+remaining <- task1b[nchar(task1b[ ,2]) != 8, ] 
+
+#renaming violation_code column with code_mod to match with newdf1 dataframe columns
+remaining$code_mod <- remaining$violation_code 
+remaining$postscript <- 0 #postscript as 0 if no postscript
+
+#merging dataframes with postscript violation codes and non-postscript violation codes
+final <- rbind(remaining,newdf1) 
+#Grouping violation description for violation codes
+descr <- aggregate(final$violation_description  ~ final$code_mod, FUN = toString) 
+ps <- aggregate(final$postscript ~ final$code_mod, FUN = toString) #Grouping postscripts for violation codes
+kk <- cbind(descr,ps)
+write.csv(kk,"task1bclean.csv", row.names = FALSE)
+
+########### Cleaning the columns by replacing duplicate values with a single value and renaming few descriptions with spelling errors ############
+setwd("<path>")
+task1b1 <- read.csv("task1b1.csv", stringsAsFactors = FALSE)
+
+######Replace duplicate values######
+task1b1$violation_code[task1b1$violation_code=="0964041B"]<- "0964041"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964041", "SPECIAL EVENTS RESTRICTION", task1b1$violation_description)
+
+#Similarly, 0964040A,0964040B were replaced with 0964040 and the violation_description is given as "STREET CLEANING"
+task1b1$violation_code[task1b1$violation_code=="0964040A"]<- "0964040"
+task1b1$violation_code[task1b1$violation_code=="0964040B"]<- "0964040"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964040", "STREET CLEANING", task1b1$violation_description)
+
+#0964050I,0964050J were replaced with 0964050 and the violation_description is given as "DISABLED PARKING"
+task1b1$violation_code[task1b1$violation_code=="0964050I"]<- "0964050"
+task1b1$violation_code[task1b1$violation_code=="0964050J"]<- "0964050"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964050", "DISABLED PARKING", task1b1$violation_description)
+
+#0964060A,0964060B were replaced with 0964060 and the violation_description is given as "3-7 AM SNOW ROUTE"
+task1b1$violation_code[task1b1$violation_code=="0964060A"]<- "0964060"
+task1b1$violation_code[task1b1$violation_code=="0964060B"]<- "0964060"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964060", "3-7 AM SNOW ROUTE", task1b1$violation_description)
+
+#violation_description for 0964070 is given as "SNOW ROUTE: 2in OF SNOW OR MORE" (Two descriptions observed for same violation code i.e., text error: 2” and 2’)
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964070", "SNOW ROUTE: 2in OF SNOW OR MORE", task1b1$violation_description)
+
+#0964090E was replaced with 0964090 and the violation_description is given as "RESIDENTIAL PARKING PERMIT"
+task1b1$violation_code[task1b1$violation_code=="0964090E"]<- "0964090"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964090", "RESIDENTIAL PARKING PERMIT", task1b1$violation_description)
+
+#0964091B was replaced with 0964091 and the violation_description is given as "INDUSTRIAL PERMIT PARKING"
+task1b1$violation_code[task1b1$violation_code=="0964091B"]<- "0964091"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964091", "INDUSTRIAL PERMIT PARKING", task1b1$violation_description)
+
+#0964140A,0964140B were replaced with 0964140 and the violation_description is given as "PARK OR STAND IN BUS/TAXI/CARRIAGE STAND"
+task1b1$violation_code[task1b1$violation_code=="0964140A"]<- "0964140"
+task1b1$violation_code[task1b1$violation_code=="0964140B"]<- "0964140"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964140", "PARK OR STAND IN BUS/TAXI/CARRIAGE STAND", task1b1$violation_description)
+
+#0964160A,0964160B were replaced with 0964160 and the violation_description is given as "CURB LOADING ZONE"
+task1b1$violation_code[task1b1$violation_code=="0964160A"]<- "0964160"
+task1b1$violation_code[task1b1$violation_code=="0964160B"]<- "0964160"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964160", "CURB LOADING ZONE", task1b1$violation_description)
+
+#0964180A was replaced with 0964180 and the violation_description is given as "NO PARKING IN LOOP"
+task1b1$violation_code[task1b1$violation_code=="0964180A"]<- "0964180"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964180", "NO PARKING IN LOOP", task1b1$violation_description)
+
+#violation_description for 0964200B is given as "OUTSIDE METERED SPACE" (Two descriptions observed for same violation code i.e., different placement of words:”OUTSIDE #METERED SPACE”, “PARK OUTSIDE METERED SPACE”)
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0964200B", "OUTSIDE METERED SPACE", task1b1$violation_description)
+
+#0968040J,0968040I were replaced with 0968040 and the violation_description is given as "PARK/STAND IN WRIGLEY BUS PERMIT ZONE"
+task1b1$violation_code[task1b1$violation_code=="0968040J"]<- "0968040"
+task1b1$violation_code[task1b1$violation_code=="0968040I"]<- "0968040"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0968040", "PARK/STAND IN WRIGLEY BUS PERMIT ZONE", task1b1$violation_description)
+
+#0976010A,0976010B were replaced with 0976010 and the violation_description is given as "BRAKES REQUIRED DURING OPERATION"
+task1b1$violation_code[task1b1$violation_code=="0976010A"]<- "0976010"
+task1b1$violation_code[task1b1$violation_code=="0976010B"]<- "0976010"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0976010", "BRAKES REQUIRED DURING OPERATION", task1b1$violation_description)
+
+#0976040A,0976040B were replaced with 0976040 and the violation_description is given as "USE OF SIREN/BELL/WHISTLE PROHIBITED"
+task1b1$violation_code[task1b1$violation_code=="0976040A"]<- "0976040"
+task1b1$violation_code[task1b1$violation_code=="0976040B"]<- "0976040"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0976040", "USE OF SIREN/BELL/WHISTLE PROHIBITED", task1b1$violation_description)
+
+#0976160A,0976160B,0976160C,0976160D,0976160F were replaced with 0976160 and the violation_description is given as "EXPIRED PLATE OR TEMPORARY REGISTRATION"
+task1b1$violation_code[task1b1$violation_code %in% c("0976160A","0976160B","0976160C","0976160D","0976160F")]<- "0976160"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0976160", "EXPIRED PLATE OR TEMPORARY REGISTRATION", task1b1$violation_description)
+
+#0976180A,0976180B were replaced with 0976180 and the violation_description is given as "SAFETY BELTS REQUIRED"
+task1b1$violation_code[task1b1$violation_code %in% c("0976180A","0976180B")]<- "0976180"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0976180", "SAFETY BELTS REQUIRED", task1b1$violation_description)
+
+#0976220A,0976220B were replaced with 0976220 and the violation_description is given as "OBSTRUCTED OR IMPROPERLY TINTED WINDOWS"
+task1b1$violation_code[task1b1$violation_code %in% c("0976220A","0976220B")]<- "0976220"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0976220", "OBSTRUCTED OR IMPROPERLY TINTED WINDOWS", task1b1$violation_description)
+
+#0980110A,0980110B were replaced with 0980110 and the violation_description is given as "HAZARDOUS DILAPIDATED VEHICLE" 
+task1b1$violation_code[task1b1$violation_code %in% c("0980110A","0980110B")]<- "0980110"
+task1b1$violation_description <- ifelse(task1b1$violation_code == "0980110", "HAZARDOUS DILAPIDATED VEHICLE", task1b1$violation_description)
+
+#Groupby violation_code and violation_description again and taking the sum of counts
+#Similarly sum of total revenue and average revenue are taken for groupby
+library(dplyr)
+task1b1_new <- task1b1 %>%
+  group_by(violation_code, violation_description) %>%
+  summarise(count=sum(count))
+
+task1b1_new <- task1b1_new[order(task1b1_new$count, decreasing = TRUE),]
+write.csv(task1b1_new, "task1b1_new.csv") #save file
+#More number of tickets of around 1.9 million were being mostly issued for ‘Expired plates/temporary registration’ 
+#and only one ticket issued for ‘Impounded: temp reg false, stolen, altered’ violation type.

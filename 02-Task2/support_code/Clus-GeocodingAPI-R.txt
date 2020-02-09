@@ -1,0 +1,62 @@
+#set folder path and loading dataset from step-1 of 'task2-Clus-PreProcess-PySpark.txt'
+setwd("<path>")
+#give file name
+setdf <- read.csv("task2c1.csv", header = TRUE, stringsAsFactors = FALSE)
+colnames(setdf) <- c("index","address","sum_fine","avg_fine", "ticket_count")
+#give street addresses as input
+library(googleway)
+key <- '<xxxxxxxxx>' #give geocoding API key
+res <- apply(setdf, 1, function(x){
+  google_geocode(address = x[['address']],
+                 key = key)
+})
+#parse the json output to required format
+coords <- lapply(seq_along(res), function(x) if (res[[x]]$status == "OK"){
+  if (nrow(res[[x]]$results$geometry$location) == 1) {
+    coords <- res[[x]]$results$geometry$location
+    address_new <- res[[x]]$results$formatted_address
+    address_old <- setdf[x, 'address']
+    sum_fine <- setdf[x, 'sum_fine']
+    avg_fine <- setdf[x, 'avg_fine']
+    ticket_count <- setdf[x, 'ticket_count']
+    
+    res_df <- data.frame(lat1 = coords[, 'lat'],
+                          lon1 = coords[, 'lng'], 
+                          address = address_old,
+                          address_form = address_new,
+                          sum_fine = sum_fine,
+                          avg_fine = avg_fine,
+                          ticket_count = ticket_count)
+  }else {
+    address_old <- setdf[x, 'address']
+    sum_fine <- setdf[x, 'sum_fine']
+    avg_fine <- setdf[x, 'avg_fine']
+    ticket_count <- setdf[x, 'ticket_count']
+    res_df <- data.frame(lat1 = NA,
+                          lon1 = NA, 
+                          address = address_old,
+                          address_form = NA,
+                        sum_fine = sum_fine,
+                         avg_fine = avg_fine,
+                         ticket_count = ticket_count) 
+    
+  }} else {
+    address_old <- setdf[x, 'address']
+    sum_fine <- setdf[x, 'sum_fine']
+    avg_fine <- setdf[x, 'avg_fine']
+    ticket_count <- setdf[x, 'ticket_count']
+    res_df <- data.frame(lat1 = NA,
+                         lon1 = NA, 
+                         address = address_old,
+                         address_form = NA,
+                         sum_fine = sum_fine,
+                         avg_fine = avg_fine,
+                         ticket_count = ticket_count) 
+  })
+final <- do.call(rbind,coords)
+final$address_form <- as.character(final$address_form)
+#save output
+write.csv(final, "lastm1.csv", row.names = FALSE)
+#Execution time: About 3706 sec per 5000 requests using Google API. 
+#Removed 579 rows with null values in latitude and longitude. 
+#Now, we have 55131 unique addresses left with zip codes available.

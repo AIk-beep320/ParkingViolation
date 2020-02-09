@@ -1,0 +1,74 @@
+##Load the output file of from step-3 of 'task2-Clus-PreProcess-PySpark.txt'
+import timeit
+start_time = timeit.default_timer()
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
+df = pd.read_csv('task2czip.csv')
+## Set the zip code as index
+df = df.set_index('zip_code')
+cont_features = ["sum(sum_fine)", "sum(ticket_count)"]
+df = df[cont_features]
+df_head = df.head()
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed, df_head, sep = "\n" )
+#Execution time:
+#0.03788239999994403
+#Then, the optimal number of clusters are obtained as given below using Elbow method.
+#Features are standardized by removing mean & scaling to unit variance.
+start_time = timeit.default_timer()
+StdScale = StandardScaler()
+StdScale.fit(df)
+df_trans = StdScale.transform(df)
+#For each value of k, we checked k-means and used the attribute ‘inertia’ to check the 
+#sum of squared distances of the samples to the nearest center of cluster.
+ssd = []
+k_value = range(1,15)
+for i in k_value:
+    k_means = KMeans(n_clusters=i)
+    k_means = k_means.fit(df_trans)
+    ssd.append(k_means.inertia_)
+plt.plot(k_value, ssd, 'bx-')
+plt.xlabel('k clusters')
+plt.ylabel('Sum of Squared Distances')
+plt.title('Optimal k for Clustering')
+plt.savefig('optimalk.png')
+plt.show()
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 2.020482299998548
+#With increase in k value (#clusters), the sum of squared distance(ssd) tends to 0. 
+#From the above plot of sum of squared distances for k-value in the range of 1 to 15, 
+#the plot looks like an arm, and the elbow on the arm gives the optimal k. 
+#Here, the optimal k i.e., optimal number of clusters that can be formed are 3.
+#Clustering analysis is performed using KMeans() function in Python by giving number of clusters as 3.
+k_means = KMeans(n_clusters=3, random_state = 1)
+k_means.fit(df_trans)
+cluster_zip = k_means.predict(df_trans)
+df['prediction'] = pd.Series(cluster_zip, index=df.index)
+df.to_csv('task2cRes2Py.csv')
+clus_stats=df[['prediction','sum(sum_fine)', 'sum(ticket_count)']].groupby(['prediction']).agg(['min','max','mean','count'])
+clus_stats
+#Execution time:
+#0.4221316000002844
+#From the above table, we can observe that,
+#prediction(cluster) - 0 has lowest mean for total fines and total ticket numbers
+#prediction(cluster) - 2 has highest mean for total fines and total ticket numbers
+##Visualizing Clusters on a graph
+start_time = timeit.default_timer()
+from sklearn.decomposition import PCA
+pca =PCA(n_components=2)
+pca.fit(df_trans)
+dfPCA = pca.transform(df_trans)
+k_means2 = KMeans(n_clusters=3, random_state = 2)
+k_means2.fit(dfPCA)
+y_means= k_means2.predict(dfPCA)
+plt.scatter(dfPCA[:,0], dfPCA[:,1], c=y_means, cmap='brg')
+centers = k_means2.cluster_centers_
+plt.scatter(centers[:,0], centers[:,1], c='black', alpha=0.5, s=200)
+plt.savefig("clustersPy.png")
+plt.show()
+elapsed = timeit.default_timer() - start_time
+print("Execution time:",elapsed)
+#Execution time: 0.5969568000000436

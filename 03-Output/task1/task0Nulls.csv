@@ -1,0 +1,2 @@
+,ticket_number,issue_date,violation_location,license_plate_number,license_plate_state,license_plate_type,zipcode,violation_code,violation_description,unit,unit_description,vehicle_make,fine_level1_amount,fine_level2_amount,current_amount_due,total_payments,ticket_queue,ticket_queue_date,notice_level,hearing_disposition,notice_number,officer,address
+0,0,0,0,0,8443,16054,1606332,0,0,0,0,0,0,0,0,0,0,0,2507958,7572715,0,0,0
